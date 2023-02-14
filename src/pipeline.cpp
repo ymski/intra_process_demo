@@ -68,18 +68,23 @@ class IncrementerPipe : public rclcpp::Node
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub2;
 };
 
+static void exec_node(std::shared_ptr<IncrementerPipe> node) {
+    auto exec = rclcpp::executors::SingleThreadedExecutor();
+    exec.add_node(node);
+    exec.spin();
+}
+
 int main(int argc, char * argv[])
 {
   setvbuf(stdout, NULL, _IONBF, BUFSIZ);
   rclcpp::init(argc, argv);
-  rclcpp::executors::SingleThreadedExecutor executor1;
-  rclcpp::executors::SingleThreadedExecutor executor2;
 
   // Create a simple loop by connecting the in and out topics of two IncrementerPipe's.
   // The expectation is that the address of the message being passed between them never changes.
   auto pipe1 = std::make_shared<IncrementerPipe>("pipe1", "topic1", "topic2");
   auto pipe2 = std::make_shared<IncrementerPipe>("pipe2", "topic2", "topic1");
   rclcpp::sleep_for(1s);  // Wait for subscriptions to be established to avoid race conditions.
+
   // Publish the first message (kicking off the cycle).
   std::unique_ptr<std_msgs::msg::Int32> msg(new std_msgs::msg::Int32());
   msg->data = 1;
@@ -88,15 +93,11 @@ int main(int argc, char * argv[])
     reinterpret_cast<std::uintptr_t>(msg.get()));
   pipe1->pub->publish(std::move(msg));
 
-
-  executor1.add_node(pipe1);
-  executor1.add_node(pipe2);
-  executor1.spin();
-  // executor2.add_node(pipe2);
-  // std::thread th1(spin_void(executor1), 1);
-  // std::thread th2(spin_void(executor2), 1);
-  // th1.join();
-  // th2.join();
+  // make 2 thread for test
+  std::thread th1(exec_node, pipe1);
+  std::thread th2(exec_node, pipe2);
+  th1.join();
+  th2.join();
 
   rclcpp::shutdown();
 
