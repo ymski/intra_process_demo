@@ -68,12 +68,6 @@ class IncrementerPipe : public rclcpp::Node
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub2;
 };
 
-static void exec_node(std::shared_ptr<IncrementerPipe> node) {
-    auto exec = rclcpp::executors::SingleThreadedExecutor();
-    exec.add_node(node);
-    exec.spin();
-}
-
 int main(int argc, char * argv[])
 {
   setvbuf(stdout, NULL, _IONBF, BUFSIZ);
@@ -93,11 +87,11 @@ int main(int argc, char * argv[])
     reinterpret_cast<std::uintptr_t>(msg.get()));
   pipe1->pub->publish(std::move(msg));
 
-  // make 2 thread for test
-  std::thread th1(exec_node, pipe1);
-  std::thread th2(exec_node, pipe2);
-  th1.join();
-  th2.join();
+
+  auto exec = rclcpp::executors::MultiThreadedExecutor();
+  exec.add_node(pipe1);
+  exec.add_node(pipe2);
+  exec.spin();
 
   rclcpp::shutdown();
 
